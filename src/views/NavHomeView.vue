@@ -1195,20 +1195,34 @@ onUnmounted(() => {
   }
 
   .sites-grid {
-    grid-template-columns: 1fr;
-    gap: 12px;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
   }
 
   .site-card {
-    padding: 14px 16px;
+    padding: 10px 12px;
+    border-radius: 8px;
+  }
+
+  .site-card .site-icon {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    margin-right: 10px;
+    border-radius: 6px;
+  }
+
+  .site-card .site-icon img {
+    width: 22px;
+    height: 22px;
   }
 
   .site-card .site-name {
-    font-size: 15px;
+    font-size: 13px;
   }
 
   .site-card .site-description {
-    font-size: 12px;
+    font-size: 11px;
   }
 
   .category-title {
