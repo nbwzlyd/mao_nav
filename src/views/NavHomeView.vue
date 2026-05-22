@@ -1226,17 +1226,17 @@ onUnmounted(() => {
   }
 
   .category-title {
-    font-size: 24px;
-    margin-bottom: 20px;
+    font-size: 20px;
+    margin-bottom: 15px;
   }
 
   .category-title .category-icon {
-    font-size: 28px;
-    margin-right: 12px;
+    font-size: 24px;
+    margin-right: 10px;
   }
 
   .category-title .category-name {
-    font-size: 22px;
+    font-size: 18px;
   }
 
   /* 移动端页面底部 */
