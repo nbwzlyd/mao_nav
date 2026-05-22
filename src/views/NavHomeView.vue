@@ -1195,19 +1195,12 @@ onUnmounted(() => {
   }
 
   .sites-grid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: 12px;
   }
 
   .site-card {
-    padding: 12px;
-    flex-direction: column;
-    text-align: center;
-  }
-
-  .site-card .site-icon {
-    margin-right: 0;
-    margin-bottom: 8px;
+    padding: 14px 16px;
   }
 
   .site-card .site-name {
