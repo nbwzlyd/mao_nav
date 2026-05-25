@@ -106,9 +106,34 @@
             v-model="searchQuery"
             :placeholder="searchEngines[selectedEngine].placeholder"
             class="search-input"
-            @keyup.enter="handleSearch"
-            @focus="showEngineMenu = false"
+            @keydown="handleSearchKeydown"
+            @focus="showEngineMenu = false; if (searchQuery.trim()) showSuggestions = true"
           />
+
+          <!-- 站点搜索建议下拉 -->
+          <div v-if="showSuggestions && filteredSites.length > 0" class="search-suggestions">
+            <div class="suggestions-header">导航站点</div>
+            <div
+              v-for="(site, index) in filteredSites"
+              :key="site.id"
+              class="suggestion-item"
+              :class="{ highlighted: index === highlightedIndex }"
+              @click="goToSite(site)"
+              @mouseenter="highlightedIndex = index"
+            >
+              <div class="suggestion-icon">
+                <img :src="site.icon" :alt="site.name" @error="handleImageError" />
+              </div>
+              <div class="suggestion-info">
+                <div class="suggestion-name">{{ site.name }}</div>
+                <div class="suggestion-desc">{{ site.description }}</div>
+              </div>
+              <div class="suggestion-category">{{ site.categoryIcon }} {{ site.categoryName }}</div>
+            </div>
+            <div class="suggestions-footer">
+              <span>↑↓ 导航 · Enter 跳转 · Esc 关闭</span>
+            </div>
+          </div>
         </div>
 
         <!-- 主题切换按钮 -->
@@ -236,7 +261,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useNavigation } from '@/apis/useNavigation.js'
 import { useThemeStore } from '@/stores/theme.js'
 // 导入搜索引擎logo图片
@@ -270,6 +295,99 @@ const searchQuery = ref('') // 搜索查询
 const selectedEngine = ref('bing') // 选中的搜索引擎，初始值会在组件挂载后更新
 const showMobileMenu = ref(false) // 移动端菜单显示状态
 const showEngineMenu = ref(false) // 搜索引擎下拉菜单显示状态
+
+// 站点搜索建议
+const showSuggestions = ref(false)
+const highlightedIndex = ref(-1)
+
+// 过滤所有站点：按名称和描述匹配搜索关键词
+const filteredSites = computed(() => {
+  const query = searchQuery.value.trim().toLowerCase()
+  if (!query || query.length < 1) return []
+
+  const results = []
+  for (const category of categories.value) {
+    for (const site of category.sites) {
+      const nameMatch = site.name.toLowerCase().includes(query)
+      const descMatch = site.description && site.description.toLowerCase().includes(query)
+      if (nameMatch || descMatch) {
+        results.push({
+          ...site,
+          categoryName: category.name,
+          categoryIcon: category.icon,
+          matchType: nameMatch ? 'name' : 'desc'
+        })
+      }
+    }
+  }
+  // 按匹配优先级排序：名称匹配 > 描述匹配
+  return results.sort((a, b) => {
+    if (a.matchType === 'name' && b.matchType !== 'name') return -1
+    if (a.matchType !== 'name' && b.matchType === 'name') return 1
+    return 0
+  })
+})
+
+// 监听搜索输入，控制建议显示
+watch(searchQuery, (val) => {
+  if (val.trim()) {
+    showSuggestions.value = true
+    highlightedIndex.value = -1
+  } else {
+    showSuggestions.value = false
+    highlightedIndex.value = -1
+  }
+})
+
+// 键盘导航处理
+const handleSearchKeydown = (e) => {
+  if (!showSuggestions.value || filteredSites.value.length === 0) {
+    if (e.key === 'Enter') {
+      handleSearch()
+    }
+    return
+  }
+
+  switch (e.key) {
+    case 'ArrowDown':
+      e.preventDefault()
+      highlightedIndex.value = Math.min(highlightedIndex.value + 1, filteredSites.value.length - 1)
+      break
+    case 'ArrowUp':
+      e.preventDefault()
+      highlightedIndex.value = Math.max(highlightedIndex.value - 1, -1)
+      break
+    case 'Enter':
+      e.preventDefault()
+      if (highlightedIndex.value >= 0) {
+        // 有高亮项 → 导航到该站点
+        goToSite(filteredSites.value[highlightedIndex.value])
+      } else {
+        // 无高亮但有匹配结果 → 跳转第一个匹配站点
+        goToSite(filteredSites.value[0])
+      }
+      break
+    case 'Escape':
+      showSuggestions.value = false
+      break
+  }
+}
+
+// 点击建议项跳转
+const goToSite = (site) => {
+  window.open(site.url, '_blank')
+  showSuggestions.value = false
+  searchQuery.value = ''
+}
+
+// 点击外部关闭建议
+const handleSuggestionClickOutside = (event) => {
+  const container = document.querySelector('.search-container')
+  const dropdown = document.querySelector('.search-suggestions')
+  if (container && !container.contains(event.target) && dropdown && !dropdown.contains(event.target)) {
+    showSuggestions.value = false
+  }
+}
 
 // 锁定功能相关
 const isLocked = ref(false) // 是否启用锁定功能
@@ -479,6 +597,7 @@ onMounted(async () => {
   selectedEngine.value = defaultSearchEngine.value
   // 添加点击页面关闭菜单的监听
   document.addEventListener('click', handleClickOutside)
+  document.addEventListener('click', handleSuggestionClickOutside)
 })
 
 // 组件卸载时清理
@@ -488,6 +607,7 @@ onUnmounted(() => {
   document.body.style.overflow = ''
   // 移除事件监听
   document.removeEventListener('click', handleClickOutside)
+  document.removeEventListener('click', handleSuggestionClickOutside)
 })
 </script>
 
@@ -764,9 +884,9 @@ onUnmounted(() => {
   margin: 0 auto;
   gap: 0;
   border-radius: 8px;
-  overflow: hidden;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   flex: 1;
+  position: relative;
 }
 
 @media (max-width: 768px) {
@@ -782,6 +902,8 @@ onUnmounted(() => {
   align-items: center;
   background: #f8f9fa;
   border-right: 1px solid #e9ecef;
+  border-radius: 8px 0 0 8px;
+  overflow: hidden;
   transition: background-color 0.2s ease;
   cursor: pointer;
 }
@@ -865,10 +987,170 @@ onUnmounted(() => {
   background: white;
   font-family: inherit;
   color: #2c3e50;
+  border-radius: 0 8px 8px 0;
 }
 
 .search-input::placeholder {
   color: #9ca3af;
+}
+
+/* 站点搜索建议下拉 */
+.search-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 6px;
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+  z-index: 200;
+  overflow: hidden;
+  border: 1px solid #e8ecf1;
+  animation: suggestionFadeIn 0.15s ease;
+}
+
+@keyframes suggestionFadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.suggestions-header {
+  padding: 8px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid #f0f0f0;
+  background: #fafbfc;
+}
+
+.suggestions-footer {
+  padding: 6px 14px;
+  font-size: 11px;
+  color: #b0b8c1;
+  border-top: 1px solid #f0f0f0;
+  background: #fafbfc;
+  text-align: right;
+}
+
+.suggestion-item {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+  gap: 10px;
+}
+
+.suggestion-item:hover,
+.suggestion-item.highlighted {
+  background: #eef2ff;
+}
+
+.suggestion-icon {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  flex-shrink: 0;
+  border-radius: 7px;
+  overflow: hidden;
+  background: #f5f7fa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.suggestion-icon img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}
+
+.suggestion-info {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.suggestion-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #2c3e50;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 1px;
+}
+
+.suggestion-item.highlighted .suggestion-name,
+.suggestion-item:hover .suggestion-name {
+  color: #4f46e5;
+}
+
+.suggestion-desc {
+  font-size: 12px;
+  color: #94a3b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.suggestion-category {
+  font-size: 12px;
+  color: #94a3b8;
+  white-space: nowrap;
+  flex-shrink: 0;
+  padding: 2px 8px;
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
+/* 暗色模式建议下拉 */
+.dark .search-suggestions {
+  background: #1e293b;
+  border-color: #334155;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+}
+
+.dark .suggestions-header {
+  background: #162032;
+  border-bottom-color: #334155;
+  color: #94a3b8;
+}
+
+.dark .suggestions-footer {
+  background: #162032;
+  border-top-color: #334155;
+  color: #64748b;
+}
+
+.dark .suggestion-item:hover,
+.dark .suggestion-item.highlighted {
+  background: #2d3b52;
+}
+
+.dark .suggestion-name {
+  color: #e2e8f0;
+}
+
+.dark .suggestion-item.highlighted .suggestion-name,
+.dark .suggestion-item:hover .suggestion-name {
+  color: #818cf8;
+}
+
+.dark .suggestion-desc {
+  color: #64748b;
+}
+
+.dark .suggestion-category {
+  background: #334155;
+  color: #94a3b8;
+}
+
+.dark .suggestion-icon {
+  background: #334155;
 }
 
 /* 移动端菜单按钮 */
@@ -1358,27 +1640,34 @@ onUnmounted(() => {
   .site-card {
     padding: 8px 10px;
     border-radius: 8px;
+    min-width: 0; /* 防止撑开 grid 列 */
   }
 
   .site-card .site-icon {
     width: 32px;
     height: 32px;
     min-width: 32px;
-    margin-right: 10px;
+    margin-right: 8px;
     border-radius: 6px;
   }
 
   .site-card .site-icon img {
-    width: 22px;
-    height: 22px;
+    width: 20px;
+    height: 20px;
   }
 
   .site-card .site-name {
     font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .site-card .site-description {
     font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .category-section {
