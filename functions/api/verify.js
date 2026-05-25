@@ -19,13 +19,18 @@ async function generateToken(password) {
   return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
+// 兼容 Cloudflare Pages (env) 和 EdgeOne Pages (process.env)
+function getEnv(context, key) {
+  return context?.env?.[key] || process.env[key] || ''
+}
+
 // POST /api/verify
 export async function onRequestPost(context) {
   const { request, env } = context
 
   try {
     const { password } = await request.json()
-    const adminPassword = env.ADMIN_PASSWORD
+    const adminPassword = getEnv(context, 'ADMIN_PASSWORD')
 
     if (!adminPassword) {
       return new Response(

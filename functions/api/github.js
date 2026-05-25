@@ -11,6 +11,11 @@ export async function onRequestOptions() {
   return new Response(null, { headers: corsHeaders })
 }
 
+// 兼容 Cloudflare Pages (context.env) 和 EdgeOne Pages (process.env)
+function getEnv(context, key) {
+  return context?.env?.[key] || process.env[key] || ''
+}
+
 async function verifyToken(token, adminPassword) {
   const encoder = new TextEncoder()
   const data = encoder.encode(adminPassword + ':mao-nav-auth')
@@ -30,7 +35,6 @@ function encodePath(path) {
 async function githubFetch(url, options, timeoutMs = 15000) {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
-  // GitHub API 要求必须带 User-Agent 头，否则返回 403
   options.headers = { 'User-Agent': 'mao-nav-server', ...options.headers }
   try {
     const response = await fetch(url, { ...options, signal: controller.signal })
@@ -44,7 +48,8 @@ async function githubFetch(url, options, timeoutMs = 15000) {
 }
 
 // Get repo config: prefer request body, fallback to env vars
-function getRepoConfig(body, env) {
+function getRepoConfig(body, context) {
+  const env = context?.env || process.env
   return {
     owner: body.owner || env.GITHUB_OWNER || '',
     repo: body.repo || env.GITHUB_REPO || '',
@@ -159,20 +164,20 @@ const actions = {
 }
 
 export async function onRequestPost(context) {
-  const { request, env } = context
+  const { request } = context
 
   try {
-    const githubToken = (env.GITHUB_TOKEN || '').trim()
+    const githubToken = getEnv(context, 'GITHUB_TOKEN')
     if (!githubToken) {
       return new Response(
-        JSON.stringify({ success: false, error: '服务端 GITHUB_TOKEN 未配置，请在 CF Pages 环境变量中添加 GITHUB_TOKEN（不带 VITE_ 前缀）' }),
+        JSON.stringify({ success: false, error: '服务端 GITHUB_TOKEN 未配置，请在平台环境变量中添加 GITHUB_TOKEN' }),
         { status: 500, headers: corsHeaders },
       )
     }
 
     const authHeader = request.headers.get('Authorization')
-    const token = authHeader?.replace('Bearer ', '')
-    if (!token || !(await verifyToken(token, env.ADMIN_PASSWORD))) {
+    const authToken = authHeader?.replace('Bearer ', '')
+    if (!authToken || !(await verifyToken(authToken, getEnv(context, 'ADMIN_PASSWORD')))) {
       return new Response(
         JSON.stringify({ success: false, error: '认证失败，请重新登录' }),
         { status: 401, headers: corsHeaders },
@@ -189,7 +194,7 @@ export async function onRequestPost(context) {
       )
     }
 
-    const repoConfig = getRepoConfig(body, env)
+    const repoConfig = getRepoConfig(body, context)
     const result = await actions[action](params, githubToken, repoConfig)
 
     return new Response(JSON.stringify({ success: true, data: result }), {

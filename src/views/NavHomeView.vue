@@ -75,13 +75,25 @@
       <header class="search-header">
         <div class="search-container">
           <div class="search-engine-selector">
-            <img :src="searchEngines[selectedEngine].icon" :alt="selectedEngine" class="engine-logo" />
-            <select v-model="selectedEngine" class="engine-select">
-              <option value="google">Google</option>
-              <option value="baidu">Baidu</option>
-              <option value="bing">Bing</option>
-              <option value="duckduckgo">DuckDuckGo</option>
-            </select>
+            <img
+              :src="searchEngines[selectedEngine].icon"
+              :alt="selectedEngine"
+              class="engine-logo"
+              @click="showEngineMenu = !showEngineMenu"
+            />
+            <!-- 搜索引擎下拉菜单 -->
+            <div v-if="showEngineMenu" class="engine-dropdown">
+              <div
+                v-for="(engine, key) in searchEngines"
+                :key="key"
+                class="engine-option"
+                :class="{ active: selectedEngine === key }"
+                @click="selectEngine(key)"
+              >
+                <img :src="engine.icon" :alt="key" class="engine-option-icon" />
+                <span>{{ key.charAt(0).toUpperCase() + key.slice(1) }}</span>
+              </div>
+            </div>
           </div>
           <input
             type="text"
@@ -89,6 +101,7 @@
             :placeholder="searchEngines[selectedEngine].placeholder"
             class="search-input"
             @keyup.enter="handleSearch"
+            @focus="showEngineMenu = false"
           />
         </div>
 
@@ -219,7 +232,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useNavigation } from '@/apis/useNavigation.js'
-import { useThemeStore } from '@/stores/counter.js'
+import { useThemeStore } from '@/stores/theme.js'
 // 导入搜索引擎logo图片
 import googleLogo from '@/assets/goolge.png'
 import baiduLogo from '@/assets/baidu.png'
@@ -238,6 +251,7 @@ const themeStore = useThemeStore()
 const searchQuery = ref('') // 搜索查询
 const selectedEngine = ref('bing') // 选中的搜索引擎，初始值会在组件挂载后更新
 const showMobileMenu = ref(false) // 移动端菜单显示状态
+const showEngineMenu = ref(false) // 搜索引擎下拉菜单显示状态
 
 // 锁定功能相关
 const isLocked = ref(false) // 是否启用锁定功能
@@ -380,9 +394,15 @@ const handleSearch = () => {
 
 // 处理图片加载错误
 const handleImageError = (event) => {
-  // 设置默认的 favicon.ico 作为 fallback 图片
-  event.target.src = '/favicon.ico'
-  event.target.onerror = null // 防止无限循环
+  // 使用内联 SVG 作为最终 fallback，避免网络请求和无限循环
+  const svgFallback = `data:image/svg+xml,${encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">' +
+    '<rect width="32" height="32" rx="6" fill="%23f0f0f0"/>' +
+    '<text x="16" y="22" text-anchor="middle" font-size="16" fill="%23999">🌐</text>' +
+    '</svg>'
+  )}`
+  event.target.src = svgFallback
+  event.target.onerror = null
 }
 
 // 移动端菜单控制
@@ -417,18 +437,36 @@ const openGitHub = () => {
   window.open('https://github.com/maodeyu180/mao_nav', '_blank')
 }
 
+// 选择搜索引擎
+const selectEngine = (engineKey) => {
+  selectedEngine.value = engineKey
+  showEngineMenu.value = false
+}
+
+// 点击页面其他地方时关闭搜索引擎菜单
+const handleClickOutside = (event) => {
+  const selector = document.querySelector('.search-engine-selector')
+  if (selector && !selector.contains(event.target)) {
+    showEngineMenu.value = false
+  }
+}
+
 // 组件挂载时获取数据
 onMounted(async () => {
   checkLockStatus() // 检查锁定状态
   await fetchCategories()
   // 设置默认搜索引擎
   selectedEngine.value = defaultSearchEngine.value
+  // 添加点击页面关闭菜单的监听
+  document.addEventListener('click', handleClickOutside)
 })
 
-// 组件卸载时清理样式
+// 组件卸载时清理
 onUnmounted(() => {
   // 确保卸载时恢复body滚动
   document.body.style.overflow = ''
+  // 移除事件监听
+  document.removeEventListener('click', handleClickOutside)
 })
 </script>
 
@@ -538,19 +576,31 @@ onUnmounted(() => {
 .nav-home {
   display: flex;
   min-height: 100vh;
-  background-color: #f5f7fa;
+  background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 50%, #eef2f7 100%);
 }
 
 /* 左侧边栏样式 */
 .sidebar {
   width: 280px;
-  background-color: #2c3e50;
+  background: var(--sidebar-gradient);
   color: white;
   padding: 0;
-  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-xl);
   height: 100vh;
   overflow: hidden;
   flex-shrink: 0;
+  position: relative;
+}
+
+/* 侧边栏微妙的图案叠加 */
+.sidebar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(circle at 20% 50%, rgba(255,255,255,0.08) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(255,255,255,0.05) 0%, transparent 50%);
+  pointer-events: none;
 }
 
 .logo-section {
@@ -607,8 +657,9 @@ onUnmounted(() => {
 }
 
 .category-item:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-  box-shadow: inset 4px 0 0 #3498db;
+  background-color: rgba(255, 255, 255, 0.15);
+  box-shadow: inset 4px 0 0 rgba(255, 255, 255, 0.8);
+  transform: translateX(4px);
 }
 
 .category-icon {
@@ -633,27 +684,27 @@ onUnmounted(() => {
 .github-link {
   display: flex;
   align-items: center;
-  color: #bdc3c7;
+  color: rgba(255, 255, 255, 0.8);
   text-decoration: none;
-  padding: 8px 12px;
-  border-radius: 6px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
   transition: all 0.3s ease;
   font-size: 14px;
 }
 
 .github-link:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.15);
   color: white;
   transform: translateY(-1px);
 }
 
 .github-link svg {
-  margin-right: 8px;
+  margin-right: 10px;
   transition: transform 0.3s ease;
 }
 
 .github-link:hover svg {
-  transform: scale(1.1);
+  transform: rotate(-10deg) scale(1.15);
 }
 
 /* 右侧主内容区样式 */
@@ -666,9 +717,11 @@ onUnmounted(() => {
 }
 
 .search-header {
-  background: white;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   padding: 20px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.06);
   position: sticky;
   top: 0;
   z-index: 100;
@@ -682,10 +735,15 @@ onUnmounted(() => {
   max-width: 600px;
   margin: 0 auto;
   gap: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   overflow: hidden;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
   flex: 1;
+  transition: box-shadow 0.3s ease;
+}
+
+.search-container:focus-within {
+  box-shadow: 0 4px 20px rgba(102, 126, 234, 0.2);
 }
 
 @media (max-width: 768px) {
@@ -702,6 +760,59 @@ onUnmounted(() => {
   background: #f8f9fa;
   border-right: 1px solid #e9ecef;
   transition: background-color 0.2s ease;
+  cursor: pointer;
+}
+
+.engine-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 8px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  min-width: 160px;
+  overflow: hidden;
+  animation: dropdownFadeIn 0.2s ease;
+}
+
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.engine-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  font-size: 14px;
+  color: #2d3748;
+}
+
+.engine-option:hover {
+  background: #f7fafc;
+}
+
+.engine-option.active {
+  background: #e6f2ff;
+  color: #667eea;
+  font-weight: 500;
+}
+
+.engine-option-icon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
 }
 
 .search-engine-selector:hover {
@@ -709,25 +820,19 @@ onUnmounted(() => {
 }
 
 .engine-logo {
-  width: 24px;
-  height: 24px;
-  margin: 8px;
+  width: 28px;
+  height: 28px;
+  margin: 10px;
   object-fit: contain;
-  pointer-events: none;
-  border-radius: 4px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.3s ease;
+  /* 点击时的小弹跳效果已移除，使用下拉菜单替代 */
 }
 
-.engine-select {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
-  border: none;
-  outline: none;
-  background: transparent;
+.engine-logo:hover {
+  transform: scale(1.1);
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
 }
 
 .search-input {
@@ -737,10 +842,16 @@ onUnmounted(() => {
   font-size: 16px;
   outline: none;
   background: white;
+  font-family: inherit;
+  color: var(--gray-800);
 }
 
 .search-input::placeholder {
-  color: #95a5a6;
+  color: var(--gray-400);
+}
+
+.search-input:focus {
+  background: #fafbff;
 }
 
 /* 移动端菜单按钮 */
@@ -748,11 +859,16 @@ onUnmounted(() => {
   display: none;
   background: none;
   border: none;
-  color: #2c3e50;
+  color: var(--gray-700);
   cursor: pointer;
   padding: 8px;
-  border-radius: 4px;
-  transition: background-color 0.2s ease;
+  border-radius: var(--radius-md);
+  transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+.mobile-menu-btn:hover {
+  background: var(--gray-100);
+  transform: scale(1.05);
 }
 
 .mobile-menu-btn:hover {
@@ -785,8 +901,8 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 20px;
-  border-bottom: 1px solid #e9ecef;
-  background: #2c3e50;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  background: var(--sidebar-gradient);
   color: white;
   flex-shrink: 0;
 }
@@ -899,6 +1015,7 @@ onUnmounted(() => {
   padding: 30px;
   padding-bottom: 400px;
   overflow-y: auto;
+  background: transparent;
 }
 
 .loading, .error {
@@ -913,10 +1030,11 @@ onUnmounted(() => {
 .loading-spinner {
   width: 40px;
   height: 40px;
-  border: 4px solid #ecf0f1;
-  border-top: 4px solid #3498db;
+  border: 4px solid var(--gray-200);
+  border-top: 4px solid var(--primary-500);
   border-radius: 50%;
   animation: spin 1s linear infinite;
+  box-shadow: 0 0 15px rgba(102, 126, 234, 0.3);
 }
 
 @keyframes spin {
@@ -927,11 +1045,18 @@ onUnmounted(() => {
 .retry-btn {
   margin-top: 10px;
   padding: 8px 16px;
-  background: #3498db;
+  background: linear-gradient(135deg, var(--primary-500), var(--primary-600));
   color: white;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-md);
   cursor: pointer;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.retry-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
 }
 
 .categories-container {
@@ -945,11 +1070,24 @@ onUnmounted(() => {
 
 .category-title {
   font-size: 32px;
-  font-weight: 600;
+  font-weight: 700;
   margin-bottom: 25px;
-  color: #2c3e50;
+  color: var(--gray-800);
   display: flex;
   align-items: center;
+  position: relative;
+}
+
+.category-title::after {
+  content: '';
+  position: absolute;
+  bottom: -8px;
+  left: 0;
+  width: 60px;
+  height: 3px;
+  background: var(--sidebar-gradient);
+  border-radius: 2px;
+  opacity: 0.5;
 }
 
 .category-title .category-icon {
@@ -971,15 +1109,18 @@ onUnmounted(() => {
 .site-card {
   display: flex;
   align-items: center;
-  background: white;
-  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: var(--radius-xl);
   padding: 20px;
   text-decoration: none;
   color: inherit;
-  transition: all 0.3s ease;
-  border: 1px solid #e9ecef;
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid rgba(255, 255, 255, 0.6);
   position: relative;
   overflow: hidden;
+  box-shadow: var(--shadow-sm);
 }
 
 .site-card::before {
@@ -989,14 +1130,16 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(135deg, rgba(52, 152, 219, 0.1), rgba(155, 89, 182, 0.1));
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.12), rgba(118, 75, 162, 0.08));
   opacity: 0;
-  transition: opacity 0.3s ease;
+  transition: opacity 0.35s ease;
+  z-index: 0;
 }
 
 .site-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 12px 30px rgba(102, 126, 234, 0.2);
+  border-color: rgba(102, 126, 234, 0.3);
 }
 
 .site-card:hover::before {
@@ -1004,25 +1147,37 @@ onUnmounted(() => {
 }
 
 .site-icon {
-  width: 48px;
-  height: 48px;
-  min-width: 48px;
+  width: 52px;
+  height: 52px;
+  min-width: 52px;
   flex-shrink: 0;
   margin-right: 16px;
-  border-radius: 8px;
+  border-radius: 12px;
   overflow: hidden;
-  background: #f8f9fa;
+  background: linear-gradient(135deg, #f0f5ff, #faf5ff);
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
   z-index: 1;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.site-card:hover .site-icon {
+  transform: scale(1.08);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
 }
 
 .site-icon img {
   width: 32px;
   height: 32px;
   object-fit: contain;
+  transition: transform 0.3s ease;
+}
+
+.site-card:hover .site-icon img {
+  transform: scale(1.1);
 }
 
 .site-info {
@@ -1037,12 +1192,20 @@ onUnmounted(() => {
   font-size: 18px;
   font-weight: 600;
   margin: 0 0 5px 0;
-  color: #2c3e50;
+  color: var(--gray-800);
+  transition: color 0.3s ease;
+}
+
+.site-card:hover .site-name {
+  background: linear-gradient(135deg, var(--primary-500), #764ba2);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .site-description {
   font-size: 14px;
-  color: #7f8c8d;
+  color: var(--gray-500);
   margin: 0;
   line-height: 1.4;
   white-space: nowrap;
@@ -1054,9 +1217,12 @@ onUnmounted(() => {
 .page-footer {
   margin-top: 60px;
   padding: 40px 0;
-  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-  border-radius: 12px;
-  border-top: 3px solid #3498db;
+  background: linear-gradient(135deg, rgba(255,255,255,0.6), rgba(245,247,250,0.8));
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: var(--radius-xl);
+  border-top: 3px solid transparent;
+  border-image: var(--sidebar-gradient) 1;
 }
 
 .footer-content {
@@ -1068,14 +1234,14 @@ onUnmounted(() => {
 }
 
 .footer-info h3 {
-  color: #2c3e50;
+  color: var(--gray-800);
   font-size: 20px;
   font-weight: 600;
   margin: 0 0 8px 0;
 }
 
 .footer-info p {
-  color: #7f8c8d;
+  color: var(--gray-500);
   font-size: 14px;
   margin: 0;
   line-height: 1.5;
@@ -1089,22 +1255,22 @@ onUnmounted(() => {
 .footer-link {
   display: flex;
   align-items: center;
-  color: #3498db;
+  color: var(--primary-500);
   text-decoration: none;
   padding: 8px 16px;
   border-radius: 20px;
   background: white;
-  border: 1px solid #e9ecef;
+  border: 1px solid var(--gray-200);
   transition: all 0.3s ease;
   font-size: 14px;
   font-weight: 500;
 }
 
 .footer-link:hover {
-  background: #3498db;
+  background: var(--primary-500);
   color: white;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.35);
 }
 
 .footer-link svg {
@@ -1113,37 +1279,61 @@ onUnmounted(() => {
 }
 
 .footer-link:hover svg {
-  transform: scale(1.1);
+  transform: rotate(-5deg) scale(1.15);
 }
 
 .footer-bottom {
-  border-top: 1px solid #e9ecef;
+  border-top: 1px solid var(--gray-200);
   padding-top: 20px;
   text-align: center;
 }
 
 .footer-bottom p {
-  color: #7f8c8d;
+  color: var(--gray-500);
   font-size: 13px;
   margin: 5px 0;
   line-height: 1.4;
 }
 
 .footer-bottom a {
-  color: #3498db;
+  color: var(--primary-500);
   text-decoration: none;
   font-weight: 500;
   transition: color 0.3s ease;
 }
 
 .footer-bottom a:hover {
-  color: #2980b9;
+  color: var(--primary-700);
   text-decoration: underline;
 }
 
 .footer-tech {
   font-size: 12px !important;
   opacity: 0.8;
+}
+
+/* 主题切换按钮 */
+.theme-toggle-btn {
+  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+  border: 1px solid var(--gray-200);
+  border-radius: 50%;
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  color: var(--gray-600);
+  flex-shrink: 0;
+}
+
+.theme-toggle-btn:hover {
+  background: linear-gradient(135deg, var(--primary-500), #764ba2);
+  color: white;
+  border-color: transparent;
+  transform: rotate(15deg) scale(1.1);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.35);
 }
 
 /* 响应式设计 */
@@ -1176,8 +1366,10 @@ onUnmounted(() => {
     left: 0;
     right: 0;
     z-index: 500;
-    background: white;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 2px 15px rgba(0, 0, 0, 0.08);
   }
 
   .content-area {
@@ -1196,11 +1388,11 @@ onUnmounted(() => {
 
   .sites-grid {
     grid-template-columns: 1fr 1fr;
-    gap: 10px;
+    gap: 8px;
   }
 
   .site-card {
-    padding: 10px 12px;
+    padding: 8px 10px;
     border-radius: 8px;
   }
 
@@ -1225,18 +1417,28 @@ onUnmounted(() => {
     font-size: 11px;
   }
 
+  .category-section {
+    margin-bottom: 24px;
+  }
+
   .category-title {
     font-size: 20px;
-    margin-bottom: 15px;
+    margin-bottom: 8px;
+  }
+
+  .category-title::after {
+    bottom: -4px;
+    width: 40px;
+    height: 2px;
   }
 
   .category-title .category-icon {
-    font-size: 24px;
-    margin-right: 10px;
+    font-size: 22px;
+    margin-right: 8px;
   }
 
   .category-title .category-name {
-    font-size: 18px;
+    font-size: 17px;
   }
 
   /* 移动端页面底部 */
