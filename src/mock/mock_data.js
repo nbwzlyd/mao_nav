@@ -47,6 +47,13 @@ export const mockData = {
           "url": "https://github.com",
           "description": "代码托管平台",
           "icon": "/sitelogo/github.com.ico"
+        },
+        {
+          "id": "site-1779977193929",
+          "name": "图片编辑",
+          "url": "https://www.iloveimg.com/zh-cn",
+          "description": "免费无广图片编辑网站",
+          "icon": "https://www.faviconextractor.com/favicon/www.iloveimg.com"
         }
       ]
     },
