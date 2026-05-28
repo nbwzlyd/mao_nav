@@ -77,7 +77,8 @@ const actions = {
 
     let content = data.content
     if (!isBinary) {
-      const raw = atob(data.content)
+      // GitHub Contents API 返回的 base64 含换行符，Edge 运行时的 atob 严格模式下不接受 \n，会抛 InvalidCharacterError
+      const raw = atob(data.content.replace(/\s/g, ''))
       content = decodeURIComponent(
         raw.split('').map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''),
       )
