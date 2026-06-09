@@ -61,6 +61,13 @@ export const mockData = {
           "url": "https://chatgpt.com",
           "description": "OpenAI,好用👌",
           "icon": "/sitelogo/chatgpt.com.ico"
+        },
+        {
+          "id": "site-1781008287130",
+          "name": "HDLogo",
+          "url": "https://hdlogo.com/",
+          "description": "各大App网站Logo",
+          "icon": ""
         }
       ]
     },
