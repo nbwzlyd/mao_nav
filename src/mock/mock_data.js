@@ -536,6 +536,21 @@ export const mockData = {
           "icon": "/sitelogo/www.feishu.cn.ico"
         }
       ]
+    },
+    {
+      "id": "category-1781072632955",
+      "icon": "🌐",
+      "name": "影视导航",
+      "order": 10,
+      "sites": [
+        {
+          "id": "site-1781072662614",
+          "name": "IK8",
+          "url": "https://i8k.tv/",
+          "description": "",
+          "icon": "https://hdlogo.com/wp-content/uploads/2026/05/hdlogo.com-hello-kitty.svg"
+        }
+      ]
     }
   ],
   "title": "安卓哥导航",
